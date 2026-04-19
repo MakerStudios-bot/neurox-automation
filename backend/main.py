@@ -26,28 +26,75 @@ if frontend_path.exists():
     app.mount("/static", StaticFiles(directory=frontend_path), name="static")
 
 SERVICIOS = {
-    "bot_automatico": {
-        "nombre": "Bot Automático Instagram",
+    "bot_automatico_sin_ia": {
+        "nombre": "Bot Automático Instagram (Sin IA)",
+        "precio": 110000,
+        "descripcion": "Respuestas predefinidas, FAQs y precios",
+    },
+    "bot_automatico_con_ia": {
+        "nombre": "Bot Automático Instagram (Con IA)",
         "precio": 180000,
-        "descripcion": "Bot automático para responder mensajes",
+        "descripcion": "IA personalizada para tu marca, responde como tú",
     },
     "vendedor_ia_starter": {
         "nombre": "Vendedor IA Starter",
-        "precio": 24000,
-        "tipo_precio": "mensual",
-        "descripcion": "Vendedor IA básico",
+        "precio": 230000,
+        "descripcion": "Agente IA para negocios que recién empiezan a vender por DM",
     },
     "vendedor_ia_pro": {
         "nombre": "Vendedor IA Pro",
-        "precio": 55000,
-        "tipo_precio": "mensual",
-        "descripcion": "Vendedor IA avanzado con negociación inteligente",
+        "precio": 380000,
+        "descripcion": "Pipeline completo con seguimiento y calificación automática de leads",
     },
     "vendedor_ia_elite": {
         "nombre": "Vendedor IA Elite",
+        "precio": 580000,
+        "descripcion": "Solución completa para alto volumen de ventas por Instagram",
+    },
+}
+
+MEMBRESIAS = {
+    "bot_starter": {
+        "nombre": "Membresía Bot Starter",
+        "precio": 24000,
+        "tipo": "mensual",
+        "conversaciones_max": 500,
+        "caracteristicas": ["500 conversaciones/mes", "Soporte WhatsApp", "1 perfil Instagram"]
+    },
+    "bot_pro": {
+        "nombre": "Membresía Bot Pro",
+        "precio": 55000,
+        "tipo": "mensual",
+        "conversaciones_max": 1500,
+        "caracteristicas": ["1.500 conversaciones/mes", "IA personalizada", "Reportes mensuales"]
+    },
+    "bot_full": {
+        "nombre": "Membresía Bot Full",
         "precio": 105000,
-        "tipo_precio": "mensual",
-        "descripcion": "Vendedor IA con máximas capacidades",
+        "tipo": "mensual",
+        "conversaciones_max": None,
+        "caracteristicas": ["Conversaciones ilimitadas", "Mantenimiento activo", "Soporte 24/7"]
+    },
+    "vendedor_starter": {
+        "nombre": "Membresía Vendedor Starter",
+        "precio": 55000,
+        "tipo": "mensual",
+        "conversaciones_max": 500,
+        "caracteristicas": ["500 conversaciones/mes", "Soporte WhatsApp", "1 perfil Instagram"]
+    },
+    "vendedor_pro": {
+        "nombre": "Membresía Vendedor Pro",
+        "precio": 105000,
+        "tipo": "mensual",
+        "conversaciones_max": 1500,
+        "caracteristicas": ["1.500 conversaciones/mes", "Reportes mensuales", "Optimización del agente"]
+    },
+    "vendedor_elite": {
+        "nombre": "Membresía Vendedor Elite",
+        "precio": 160000,
+        "tipo": "mensual",
+        "conversaciones_max": None,
+        "caracteristicas": ["Conversaciones ilimitadas", "Soporte 24/7", "Mantenimiento activo"]
     },
 }
 

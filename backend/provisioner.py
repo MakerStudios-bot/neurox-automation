@@ -16,10 +16,11 @@ from database import (
 
 # Mapeo de templates en Railway
 RAILWAY_TEMPLATES = {
-    "bot_automatico": "eaa5e41c-06a2-497b-8696-1417a9f62485",
-    "vendedor_ia_starter": "vendedor-ia-starter-id",
-    "vendedor_ia_pro": "vendedor-ia-pro-id",
-    "vendedor_ia_elite": "vendedor-ia-elite-id",
+    "bot_automatico_sin_ia": "mellow-elegance",  # mellow-elegance: 49a1dc7a-c29d-4631-baff-5fb29e17d6e4
+    "bot_automatico_con_ia": "mellow-elegance",  # Mismo template, diferentes instrucciones
+    "vendedor_ia_starter": "radiant-ambition",   # radiant-ambition: eaa5e41c-06a2-497b-8696-1417a9f62485
+    "vendedor_ia_pro": "radiant-ambition",       # Mismo template, diferentes instrucciones
+    "vendedor_ia_elite": "radiant-ambition",     # Mismo template, diferentes instrucciones
 }
 
 VARIABLES_COMPARTIDAS = {
