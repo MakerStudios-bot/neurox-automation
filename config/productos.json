@@ -1,0 +1,228 @@
+{
+  "bot_automatico_sin_ia": {
+    "nombre": "Bot Automático Instagram (Sin IA)",
+    "precio": 110000,
+    "tipo": "bot",
+    "template": "mellow-elegance",
+    "membresias": ["bot_starter", "bot_pro", "bot_full"],
+    "campos_obligatorios": [
+      "nombre_negocio",
+      "rubro",
+      "instagram",
+      "contacto_derivacion"
+    ],
+    "campos_adicionales": {
+      "preguntas_frecuentes": {
+        "descripcion": "Preguntas frecuentes a configurar",
+        "tipo": "array",
+        "items": {
+          "pregunta": "string",
+          "respuesta": "string"
+        }
+      },
+      "palabras_clave": {
+        "descripcion": "Palabras clave que activan cada respuesta",
+        "tipo": "array",
+        "items": {
+          "keywords": "array de strings",
+          "respuesta": "string"
+        }
+      }
+    },
+    "capacidades": {
+      "respuestas_predefinidas": true,
+      "menu_fijo": true,
+      "redirige_a_contacto": true,
+      "lenguaje_natural": false,
+      "califica_leads": false,
+      "follow_up": false,
+      "agenda_automatico": false
+    }
+  },
+  "bot_automatico_con_ia": {
+    "nombre": "Bot Automático Instagram (Con IA)",
+    "precio": 180000,
+    "tipo": "bot",
+    "template": "mellow-elegance",
+    "membresias": ["bot_starter", "bot_pro", "bot_full"],
+    "campos_obligatorios": [
+      "nombre_negocio",
+      "rubro",
+      "instagram",
+      "tono_respuesta",
+      "contacto_derivacion"
+    ],
+    "campos_adicionales": {
+      "servicios": {
+        "descripcion": "Servicios que ofrece",
+        "tipo": "array",
+        "items": "string"
+      },
+      "preguntas_frecuentes": {
+        "descripcion": "Preguntas frecuentes",
+        "tipo": "array",
+        "items": "string"
+      },
+      "horario_atencion": "string"
+    },
+    "capacidades": {
+      "lenguaje_natural": true,
+      "responde_productos_servicios": true,
+      "personalidad_adaptada": true,
+      "disponible_24_7": true,
+      "cierra_ventas": false,
+      "califica_leads": false,
+      "follow_up": false,
+      "agenda_automatico": false,
+      "dashboard": false
+    }
+  },
+  "vendedor_ia_starter": {
+    "nombre": "Vendedor IA Starter",
+    "precio": 230000,
+    "tipo": "vendedor_ia",
+    "template": "radiant-ambition",
+    "nivel_herencia": 1,
+    "membresias": ["vendedor_starter", "vendedor_pro", "vendedor_elite"],
+    "campos_obligatorios": [
+      "nombre_negocio",
+      "rubro",
+      "instagram",
+      "tono_venta",
+      "servicios",
+      "link_agendamiento",
+      "contacto_whatsapp"
+    ],
+    "campos_adicionales": {
+      "preguntas_calificacion": {
+        "descripcion": "Exactamente 3 preguntas de calificación",
+        "tipo": "array",
+        "items": "string",
+        "min": 3,
+        "max": 3
+      }
+    },
+    "capacidades": {
+      "agente_ia_entrenado": true,
+      "pipeline_basico": true,
+      "califica_leads": true,
+      "envio_link_agendamiento": true,
+      "respuestas_24_7": true,
+      "transferencia_whatsapp": false,
+      "follow_up": false,
+      "re_engagement": false,
+      "dashboard": false,
+      "nurturing": false
+    }
+  },
+  "vendedor_ia_pro": {
+    "nombre": "Vendedor IA Pro",
+    "precio": 380000,
+    "tipo": "vendedor_ia",
+    "template": "radiant-ambition",
+    "nivel_herencia": 2,
+    "hereda_de": "vendedor_ia_starter",
+    "membresias": ["vendedor_starter", "vendedor_pro", "vendedor_elite"],
+    "campos_obligatorios": [
+      "nombre_negocio",
+      "rubro",
+      "instagram",
+      "tono_venta",
+      "servicios",
+      "link_agendamiento",
+      "whatsapp_derivacion"
+    ],
+    "campos_adicionales": {
+      "preguntas_calificacion": {
+        "descripcion": "Criterios para calificar leads",
+        "tipo": "array",
+        "items": "string"
+      },
+      "secuencia_nurturing": {
+        "descripcion": "3 mensajes de seguimiento",
+        "tipo": "array",
+        "items": {
+          "tiempo": "string",
+          "mensaje": "string"
+        },
+        "min": 3,
+        "max": 3
+      }
+    },
+    "nuevo_en_pro": {
+      "transferencia_whatsapp": "Cuando lead está calificado",
+      "calificacion_automatica": "De leads",
+      "follow_up_automatico": "24-48h sin respuesta",
+      "secuencia_nurturing": "3 mensajes configurables",
+      "dashboard_conversaciones": true
+    },
+    "capacidades": {
+      "agente_ia_entrenado": true,
+      "pipeline_basico": true,
+      "califica_leads": true,
+      "envio_link_agendamiento": true,
+      "respuestas_24_7": true,
+      "transferencia_whatsapp": true,
+      "follow_up": true,
+      "re_engagement": true,
+      "dashboard": true,
+      "nurturing": true,
+      "reactivacion_inactivos": false,
+      "optimizacion_mensual": false,
+      "personalizacion_avanzada": false
+    }
+  },
+  "vendedor_ia_elite": {
+    "nombre": "Vendedor IA Elite",
+    "precio": 580000,
+    "tipo": "vendedor_ia",
+    "template": "radiant-ambition",
+    "nivel_herencia": 3,
+    "hereda_de": "vendedor_ia_pro",
+    "membresias": ["vendedor_starter", "vendedor_pro", "vendedor_elite"],
+    "campos_obligatorios": [
+      "nombre_negocio",
+      "rubro",
+      "instagram",
+      "tono_venta",
+      "servicios",
+      "base_clientes_inactivos",
+      "whatsapp_derivacion"
+    ],
+    "campos_adicionales": {
+      "guion_venta_personalizado": {
+        "objeciones_frecuentes": {
+          "descripcion": "Objeciones frecuentes del rubro",
+          "tipo": "array",
+          "items": "string"
+        },
+        "respuestas_objeciones": {
+          "descripcion": "Respuesta a cada objeción",
+          "tipo": "array",
+          "items": "string"
+        },
+        "tono_estilo": "string"
+      }
+    },
+    "nuevo_en_elite": {
+      "reactivacion_inactivos": "Con secuencia personalizada",
+      "personalizacion_avanzada": "Tono y guión específico",
+      "reunion_optimizacion": "30 min mensual"
+    },
+    "capacidades": {
+      "agente_ia_entrenado": true,
+      "pipeline_basico": true,
+      "califica_leads": true,
+      "envio_link_agendamiento": true,
+      "respuestas_24_7": true,
+      "transferencia_whatsapp": true,
+      "follow_up": true,
+      "re_engagement": true,
+      "dashboard": true,
+      "nurturing": true,
+      "reactivacion_inactivos": true,
+      "optimizacion_mensual": true,
+      "personalizacion_avanzada": true
+    }
+  }
+}

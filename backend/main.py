@@ -12,8 +12,16 @@ from dotenv import load_dotenv
 from provisioner import provisionar_bot, obtener_estado_provisioning
 from database import obtener_todos_bots
 from railway_api import railway
+import json
 
 load_dotenv()
+
+# Cargar configuraciones de productos
+CONFIG_PATH = Path(__file__).parent.parent / "config"
+with open(CONFIG_PATH / "productos.json") as f:
+    PRODUCTOS_CONFIG = json.load(f)
+with open(CONFIG_PATH / "prompts.json") as f:
+    PROMPTS_CONFIG = json.load(f)
 
 app = FastAPI(title="Neurox Bot Provisioner", version="1.0.0")
 
@@ -108,56 +116,60 @@ async def root():
 
 @app.get("/api/servicios")
 async def listar_servicios():
-    """Retorna lista de servicios disponibles"""
+    """Retorna lista de servicios con configuración completa"""
     return JSONResponse({
         "ok": True,
-        "servicios": SERVICIOS
+        "servicios": SERVICIOS,
+        "configuracion": PRODUCTOS_CONFIG,
+        "prompts": PROMPTS_CONFIG
     })
 
 @app.post("/api/provisionar")
 async def provisionar_nuevo_bot(request: Request, background_tasks: BackgroundTasks):
     """
     Inicia el provisioning de un nuevo bot.
+    Valida según la configuración del producto.
     Corre en background y configura todo automáticamente.
     """
     try:
         data = await request.json()
 
-        cliente_nombre = data.get("cliente_nombre", "").strip()
-        cliente_instagram = data.get("cliente_instagram", "").strip()
-        cliente_clave = data.get("cliente_clave", "").strip()
         tipo_servicio = data.get("tipo_servicio", "").strip()
 
-        # Validación
-        if not all([cliente_nombre, cliente_instagram, cliente_clave, tipo_servicio]):
-            return JSONResponse(
-                {"ok": False, "error": "Faltan datos requeridos"},
-                status_code=400
-            )
-
+        # Validar tipo de servicio
         if tipo_servicio not in SERVICIOS:
             return JSONResponse(
                 {"ok": False, "error": "Tipo de servicio no válido"},
                 status_code=400
             )
 
+        # Obtener configuración del producto
+        config_producto = PRODUCTOS_CONFIG.get(tipo_servicio, {})
+        campos_obligatorios = config_producto.get("campos_obligatorios", [])
+
+        # Validar campos obligatorios
+        for campo in campos_obligatorios:
+            if not data.get(campo, "").strip():
+                return JSONResponse(
+                    {"ok": False, "error": f"Falta campo obligatorio: {campo}"},
+                    status_code=400
+                )
+
         servicio = SERVICIOS[tipo_servicio]
 
         # Dispara provisioning en background
         background_tasks.add_task(
             provisionar_bot,
-            cliente_nombre,
-            cliente_instagram,
-            cliente_clave,
+            data,
             tipo_servicio
         )
 
         return JSONResponse({
             "ok": True,
             "mensaje": f"Provisionando {servicio['nombre']}...",
-            "cliente": cliente_nombre,
-            "instagram": cliente_instagram,
-            "servicio": servicio['nombre']
+            "cliente": data.get("nombre_negocio") or data.get("cliente_nombre"),
+            "servicio": servicio['nombre'],
+            "tipo": config_producto.get("tipo")
         })
 
     except Exception as e:
