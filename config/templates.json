@@ -1,0 +1,49 @@
+{
+  "bot_automatico": {
+    "nombre": "Bot Automático Instagram",
+    "railway_project_id": "PROJECT_ID_AQUI",
+    "descripcion": "Bot automático para responder mensajes en Instagram",
+    "variables_requeridas": [
+      "INSTAGRAM_USERNAME",
+      "INSTAGRAM_PASSWORD",
+      "TOKEN_DE_VERIFICACIÓN",
+      "APP_SECRET"
+    ]
+  },
+  "vendedor_ia_starter": {
+    "nombre": "Vendedor IA Starter",
+    "railway_project_id": "PROJECT_ID_AQUI",
+    "descripcion": "Vendedor IA básico para automatizar ventas",
+    "variables_requeridas": [
+      "INSTAGRAM_USERNAME",
+      "INSTAGRAM_PASSWORD",
+      "TOKEN_DE_VERIFICACIÓN",
+      "APP_SECRET",
+      "ANTHROPIC_API_KEY"
+    ]
+  },
+  "vendedor_ia_pro": {
+    "nombre": "Vendedor IA Pro",
+    "railway_project_id": "PROJECT_ID_AQUI",
+    "descripcion": "Vendedor IA avanzado con negociación inteligente",
+    "variables_requeridas": [
+      "INSTAGRAM_USERNAME",
+      "INSTAGRAM_PASSWORD",
+      "TOKEN_DE_VERIFICACIÓN",
+      "APP_SECRET",
+      "ANTHROPIC_API_KEY"
+    ]
+  },
+  "vendedor_ia_elite": {
+    "nombre": "Vendedor IA Elite",
+    "railway_project_id": "PROJECT_ID_AQUI",
+    "descripcion": "Vendedor IA con máximas capacidades",
+    "variables_requeridas": [
+      "INSTAGRAM_USERNAME",
+      "INSTAGRAM_PASSWORD",
+      "TOKEN_DE_VERIFICACIÓN",
+      "APP_SECRET",
+      "ANTHROPIC_API_KEY"
+    ]
+  }
+}
