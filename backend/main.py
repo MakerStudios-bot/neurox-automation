@@ -1,22 +1,23 @@
 """
-Neurox Bot Provisioner - Automatiza la instalación de bots para clientes
+Neurox Bot Provisioner - Automatiza instalación completa de bots para clientes
 """
 import os
-import json
-from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
+import asyncio
+from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from dotenv import load_dotenv
-import httpx
+
+from provisioner import provisionar_bot, obtener_estado_provisioning
+from database import obtener_todos_bots
+from railway_api import railway
 
 load_dotenv()
 
 app = FastAPI(title="Neurox Bot Provisioner", version="1.0.0")
 
 # Configuración
-RAILWAY_API_TOKEN = os.getenv("RAILWAY_API_TOKEN", "")
-RAILWAY_API_URL = os.getenv("RAILWAY_API_URL", "https://api.railway.app/graphql")
 NEUROX_VENDEDOR_NOMBRE = os.getenv("NEUROX_VENDEDOR_NOMBRE", "María")
 
 # Servir archivos estáticos del frontend
@@ -28,25 +29,25 @@ SERVICIOS = {
     "bot_automatico": {
         "nombre": "Bot Automático Instagram",
         "precio": 180000,
-        "template": "neurox-bot-automatico",
+        "descripcion": "Bot automático para responder mensajes",
     },
     "vendedor_ia_starter": {
         "nombre": "Vendedor IA Starter",
         "precio": 24000,
         "tipo_precio": "mensual",
-        "template": "neurox-vendedor-ia-starter",
+        "descripcion": "Vendedor IA básico",
     },
     "vendedor_ia_pro": {
         "nombre": "Vendedor IA Pro",
         "precio": 55000,
         "tipo_precio": "mensual",
-        "template": "neurox-vendedor-ia-pro",
+        "descripcion": "Vendedor IA avanzado con negociación inteligente",
     },
     "vendedor_ia_elite": {
         "nombre": "Vendedor IA Elite",
         "precio": 105000,
         "tipo_precio": "mensual",
-        "template": "neurox-vendedor-ia-elite",
+        "descripcion": "Vendedor IA con máximas capacidades",
     },
 }
 
@@ -67,99 +68,135 @@ async def listar_servicios():
     })
 
 @app.post("/api/provisionar")
-async def provisionar_bot(request: Request, background_tasks: BackgroundTasks):
+async def provisionar_nuevo_bot(request: Request, background_tasks: BackgroundTasks):
     """
-    Provisiona un nuevo bot para un cliente
-
-    Requiere:
-    - cliente_nombre: nombre del cliente
-    - cliente_instagram: usuario de Instagram del cliente
-    - cliente_clave: clave/contraseña de Instagram
-    - tipo_servicio: bot_automatico, vendedor_ia_starter, etc.
+    Inicia el provisioning de un nuevo bot.
+    Corre en background y configura todo automáticamente.
     """
     try:
         data = await request.json()
 
-        cliente_nombre = data.get("cliente_nombre")
-        cliente_instagram = data.get("cliente_instagram")
-        cliente_clave = data.get("cliente_clave")
-        tipo_servicio = data.get("tipo_servicio")
+        cliente_nombre = data.get("cliente_nombre", "").strip()
+        cliente_instagram = data.get("cliente_instagram", "").strip()
+        cliente_clave = data.get("cliente_clave", "").strip()
+        tipo_servicio = data.get("tipo_servicio", "").strip()
 
+        # Validación
         if not all([cliente_nombre, cliente_instagram, cliente_clave, tipo_servicio]):
             return JSONResponse(
-                {"error": "Faltan datos requeridos"},
+                {"ok": False, "error": "Faltan datos requeridos"},
                 status_code=400
             )
 
         if tipo_servicio not in SERVICIOS:
             return JSONResponse(
-                {"error": "Tipo de servicio no válido"},
-                status_code=400
-            )
-
-        # Validar que Instagram no esté vacío
-        if not cliente_instagram.strip():
-            return JSONResponse(
-                {"error": "Usuario de Instagram no puede estar vacío"},
+                {"ok": False, "error": "Tipo de servicio no válido"},
                 status_code=400
             )
 
         servicio = SERVICIOS[tipo_servicio]
-        print(f"\n📦 Provisionando {servicio['nombre']} para {cliente_nombre}")
 
-        # Dispara el provisioning en background
+        # Dispara provisioning en background
         background_tasks.add_task(
-            procesar_provisioning,
+            provisionar_bot,
             cliente_nombre,
             cliente_instagram,
             cliente_clave,
-            tipo_servicio,
-            servicio
+            tipo_servicio
         )
 
         return JSONResponse({
             "ok": True,
             "mensaje": f"Provisionando {servicio['nombre']}...",
             "cliente": cliente_nombre,
+            "instagram": cliente_instagram,
             "servicio": servicio['nombre']
         })
 
     except Exception as e:
-        print(f"❌ Error en provisioning: {e}")
+        print(f"❌ Error: {e}")
         return JSONResponse(
-            {"error": str(e)},
+            {"ok": False, "error": str(e)},
             status_code=500
         )
 
-async def procesar_provisioning(cliente_nombre, cliente_instagram, cliente_clave, tipo_servicio, servicio):
-    """Procesa el provisioning del bot (corre en background)"""
+@app.get("/api/historial")
+async def obtener_historial():
+    """Retorna historial de bots provisionados"""
     try:
-        print(f"✓ Iniciando provisioning para {cliente_nombre}...")
+        bots = obtener_todos_bots(limite=50)
 
-        # TODO: Aquí irá la lógica de:
-        # 1. Clonar template en Railway
-        # 2. Configurar credenciales (cliente_instagram, cliente_clave)
-        # 3. Conectar a Meta/Instagram
-        # 4. Validar que funciona
-        # 5. Notificar cuando esté listo
-
-        print(f"✅ Bot listo para {cliente_nombre}")
+        return JSONResponse({
+            "ok": True,
+            "total": len(bots),
+            "bots": [
+                {
+                    "id": bot["id"],
+                    "cliente": bot["cliente_nombre"],
+                    "instagram": bot["cliente_instagram"],
+                    "servicio": bot["tipo_servicio"],
+                    "estado": bot["estado"],
+                    "fecha": bot["fecha_creacion"],
+                }
+                for bot in bots
+            ]
+        })
 
     except Exception as e:
-        print(f"❌ Error procesando provisioning: {e}")
+        return JSONResponse(
+            {"ok": False, "error": str(e)},
+            status_code=500
+        )
+
+@app.get("/api/bot/{bot_id}")
+async def obtener_estado_bot(bot_id: int):
+    """Obtiene el estado detallado de un bot específico"""
+    try:
+        estado = await obtener_estado_provisioning(bot_id)
+
+        if "error" in estado:
+            return JSONResponse(
+                {"ok": False, "error": estado["error"]},
+                status_code=404
+            )
+
+        return JSONResponse({
+            "ok": True,
+            "bot": estado
+        })
+
+    except Exception as e:
+        return JSONResponse(
+            {"ok": False, "error": str(e)},
+            status_code=500
+        )
 
 @app.get("/api/status")
 async def status():
-    """Retorna estado de la aplicación"""
-    railway_ok = bool(RAILWAY_API_TOKEN)
+    """Retorna estado de la aplicación y conexiones"""
+    try:
+        # Verificar Railway
+        proyectos = await railway.obtener_proyectos()
+        railway_ok = len(proyectos) > 0
 
-    return JSONResponse({
-        "ok": True,
-        "railway_conectado": railway_ok,
-        "vendedor_nombre": NEUROX_VENDEDOR_NOMBRE
-    })
+        return JSONResponse({
+            "ok": True,
+            "estado": "operacional",
+            "railway_conectado": railway_ok,
+            "vendedor_nombre": NEUROX_VENDEDOR_NOMBRE,
+            "servicios_disponibles": len(SERVICIOS),
+            "proyectos_railway": len(proyectos) if railway_ok else 0
+        })
+
+    except Exception as e:
+        return JSONResponse({
+            "ok": False,
+            "error": str(e),
+            "railway_conectado": False
+        })
 
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 3000))
+    print(f"\n🚀 Neurox Bot Provisioner iniciando en puerto {port}...")
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
