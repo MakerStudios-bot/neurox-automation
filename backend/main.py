@@ -36,6 +36,7 @@ app = FastAPI(title="Neurox Bot Provisioner", version="1.0.0")
 DEFAULT_ROUTES = {
     "17841480224286570": "https://neurox-instagram-bot-production.up.railway.app/webhook",
     "17841468402103789": "https://neurox-airfresh-bot-production.up.railway.app/webhook",
+    "17841469378196787": "https://bot-marketelite-production.up.railway.app/webhook",
 }
 
 WEBHOOK_ROUTES_EXTRA = os.getenv("WEBHOOK_ROUTES", "")

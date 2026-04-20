@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any
 
 RAILWAY_API_URL = "https://backboard.railway.app/graphql/v2"
 RAILWAY_ACCESS_TOKEN = os.getenv("RAILWAY_ACCESS_TOKEN", "")
-RAILWAY_WORKSPACE_ID = os.getenv("RAILWAY_WORKSPACE_ID", "")
+RAILWAY_WORKSPACE_ID = os.getenv("RAILWAY_WORKSPACE_ID", "899e5378-1969-4f91-ad6b-0a3b15f9235e")
 
 TEMPLATE_PROJECT_ID = os.getenv("TEMPLATE_PROJECT_ID", "eaa5e41c-06a2-497b-8696-1417a9f62485")
 TEMPLATE_SERVICE_ID = os.getenv("TEMPLATE_SERVICE_ID", "b81e319e-0150-4560-a613-b0f31ec90c4c")
