@@ -2,19 +2,25 @@
 Neurox Bot Provisioner - Automatiza instalación completa de bots para clientes
 """
 import os
+import sys
 import asyncio
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from dotenv import load_dotenv
+import json
+
+# Agregar backend al path para imports
+sys.path.insert(0, str(Path(__file__).parent))
+
+# Cargar .env desde la raíz del proyecto
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 from provisioner import provisionar_bot, obtener_estado_provisioning
 from database import obtener_todos_bots
 from railway_api import railway
-import json
-
-load_dotenv()
 
 # Cargar configuraciones de productos
 CONFIG_PATH = Path(__file__).parent.parent / "config"
@@ -121,6 +127,7 @@ async def listar_servicios():
         "ok": True,
         "servicios": SERVICIOS,
         "configuracion": PRODUCTOS_CONFIG,
+        "membresias": MEMBRESIAS,
         "prompts": PROMPTS_CONFIG
     })
 

@@ -33,44 +33,9 @@
                 <!-- Tab: Nuevo Cliente -->
                 <div id="tab-nuevo" class="tab-content">
                     <form id="provisionForm" onsubmit="provisionar(event)" class="space-y-5">
-                        <!-- Datos del Cliente -->
-                        <div class="bg-slate-700/30 p-6 rounded-lg border border-slate-700/50">
-                            <h3 class="text-lg font-semibold text-white mb-4">📋 Datos del Cliente</h3>
-
-                            <div class="space-y-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-2">Nombre del Cliente</label>
-                                    <input
-                                        type="text"
-                                        name="cliente_nombre"
-                                        placeholder="Juan Pérez"
-                                        class="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-2">Usuario de Instagram</label>
-                                    <input
-                                        type="text"
-                                        name="cliente_instagram"
-                                        placeholder="mi_usuario_instagram"
-                                        class="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-2">Clave de Instagram</label>
-                                    <input
-                                        type="password"
-                                        name="cliente_clave"
-                                        placeholder="••••••••••"
-                                        class="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-                                        required
-                                    />
-                                </div>
-                            </div>
+                        <!-- Formulario dinámico -->
+                        <div id="campos-dinamicos" class="space-y-5">
+                            <!-- Se generará con JavaScript -->
                         </div>
 
                         <!-- Seleccionar Servicio -->
@@ -78,6 +43,15 @@
                             <h3 class="text-lg font-semibold text-white mb-4">🤖 Seleccionar Servicio</h3>
 
                             <div id="servicios-container" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <!-- Se llenará con JavaScript -->
+                            </div>
+                        </div>
+
+                        <!-- Seleccionar Membresía -->
+                        <div id="membresias-section" class="bg-slate-700/30 p-6 rounded-lg border border-slate-700/50 hidden">
+                            <h3 class="text-lg font-semibold text-white mb-4">💳 Seleccionar Membresía</h3>
+
+                            <div id="membresias-container" class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <!-- Se llenará con JavaScript -->
                             </div>
                         </div>
@@ -106,8 +80,14 @@
 
                 <!-- Tab: Historial -->
                 <div id="tab-historial" class="tab-content hidden">
-                    <div id="historial-container" class="space-y-3">
-                        <p class="text-slate-400 text-center py-8">Cargando historial...</p>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold text-white">📊 Historial de Provisioning</h3>
+                            <button onclick="cargarHistorial()" type="button" class="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-sm">Actualizar</button>
+                        </div>
+                        <div id="historial-container" class="space-y-3">
+                            <p class="text-slate-400 text-center py-8">Cargando historial...</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -122,7 +102,11 @@
     <script>
         const API_URL = '/api';
         let serviciosDisponibles = {};
+        let productosConfig = {};
+        let membresiasConfig = {};
         let servicioSeleccionado = null;
+        let membresiaSeleccionada = null;
+        let promptsConfig = {};
 
         // Cambiar entre tabs
         function switchTab(tab) {
@@ -134,7 +118,7 @@
             event.target.classList.add('active', 'border-blue-500');
         }
 
-        // Cargar servicios disponibles
+        // Cargar servicios y configuración
         async function cargarServicios() {
             try {
                 const res = await fetch(`${API_URL}/servicios`);
@@ -142,6 +126,9 @@
 
                 if (data.ok) {
                     serviciosDisponibles = data.servicios;
+                    productosConfig = data.configuracion || {};
+                    membresiasConfig = data.membresias || {};
+                    promptsConfig = data.prompts || {};
                     renderizarServicios();
                 }
             } catch (error) {
@@ -162,7 +149,6 @@
                 btn.innerHTML = `
                     <p class="font-medium text-white">${servicio.nombre}</p>
                     <p class="text-sm text-slate-400 mt-1">$${servicio.precio.toLocaleString()}</p>
-                    ${servicio.tipo_precio ? `<p class="text-xs text-slate-500">/${servicio.tipo_precio}</p>` : ''}
                 `;
 
                 btn.onclick = (e) => {
@@ -174,65 +160,239 @@
             });
         }
 
+        // Renderizar opciones de membresía
+        function renderizarMembresias(servicioKey) {
+            const config = productosConfig[servicioKey] || {};
+            const membresiasDelServicio = config.membresias || [];
+            const container = document.getElementById('membresias-container');
+            const section = document.getElementById('membresias-section');
+
+            if (membresiasDelServicio.length === 0) {
+                section.classList.add('hidden');
+                return;
+            }
+
+            section.classList.remove('hidden');
+            container.innerHTML = '';
+
+            membresiasDelServicio.forEach(membresiaKey => {
+                const membresia = membresiasConfig[membresiaKey];
+                if (!membresia) return;
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `p-4 rounded-lg border-2 border-slate-600 bg-slate-900/30 hover:border-cyan-500 hover:bg-cyan-500/10 transition cursor-pointer text-left membresia-btn`;
+                btn.dataset.membresia = membresiaKey;
+                btn.innerHTML = `
+                    <p class="font-medium text-white">${membresia.nombre}</p>
+                    <p class="text-sm text-slate-400 mt-1">$${membresia.precio.toLocaleString()} ${membresia.tipo}</p>
+                    <p class="text-xs text-slate-500 mt-2">${membresia.caracteristicas.join(', ')}</p>
+                `;
+
+                btn.onclick = (e) => {
+                    e.preventDefault();
+                    seleccionarMembresia(membresiaKey, membresia);
+                };
+
+                container.appendChild(btn);
+            });
+        }
+
+        // Mapeo de placeholders y tipos de campo
+        const mapeoLabels = {
+            'nombre_negocio': { label: 'Nombre del Negocio', placeholder: 'Mi Negocio S.A.', type: 'text' },
+            'rubro': { label: 'Rubro del Negocio', placeholder: 'Ej: E-commerce, Consultoría', type: 'text' },
+            'instagram': { label: 'Usuario de Instagram', placeholder: '@mi_negocio', type: 'text' },
+            'cliente_instagram': { label: 'Usuario de Instagram', placeholder: '@mi_negocio', type: 'text' },
+            'cliente_clave': { label: 'Contraseña de Instagram', placeholder: '••••••••••', type: 'password' },
+            'contacto_derivacion': { label: 'Contacto de Derivación', placeholder: 'Ej: +54 9 1234 5678', type: 'text' },
+            'contacto_whatsapp': { label: 'WhatsApp de Derivación', placeholder: '+54 9 1234 5678', type: 'text' },
+            'whatsapp_derivacion': { label: 'WhatsApp de Derivación', placeholder: '+54 9 1234 5678', type: 'text' },
+            'tono_respuesta': { label: 'Tono de Respuesta', placeholder: 'Ej: profesional, amigable, casual', type: 'text' },
+            'tono_venta': { label: 'Tono de Venta', placeholder: 'Ej: consultivo, directo, persuasivo', type: 'text' },
+            'servicios': { label: 'Servicios Ofrecidos', placeholder: 'Ej: Consultoría, Diseño, Desarrollo\n(uno por línea)', type: 'textarea' },
+            'link_agendamiento': { label: 'Link de Agendamiento', placeholder: 'https://calendly.com/...', type: 'text' },
+            'horario_atencion': { label: 'Horario de Atención', placeholder: 'Lun-Vie 9:00-18:00', type: 'text' },
+            'base_clientes_inactivos': { label: 'Criterio Clientes Inactivos', placeholder: 'Ej: Sin interacción hace 30 días', type: 'text' },
+            'cliente_nombre': { label: 'Nombre del Cliente', placeholder: 'Juan Pérez', type: 'text' }
+        };
+
+        // Generar campos dinámicos
+        function generarFormularioDinamico(config, servicio) {
+            servicioSeleccionado = Object.keys(serviciosDisponibles).find(k => serviciosDisponibles[k].nombre === servicio.nombre);
+            const camposObligatorios = config.campos_obligatorios || [];
+            const contenedor = document.getElementById('campos-dinamicos');
+
+            contenedor.innerHTML = '';
+
+            // Crear sección de datos del cliente
+            const seccion = document.createElement('div');
+            seccion.className = 'bg-slate-700/30 p-6 rounded-lg border border-slate-700/50';
+            seccion.innerHTML = `<h3 class="text-lg font-semibold text-white mb-4">📋 Datos Requeridos</h3><div class="space-y-4" id="campos-container"></div>`;
+
+            contenedor.appendChild(seccion);
+
+            const camposContainer = seccion.querySelector('#campos-container');
+
+            // Generar un campo para cada campo obligatorio
+            camposObligatorios.forEach(campo => {
+                const config_campo = mapeoLabels[campo] || {
+                    label: campo.charAt(0).toUpperCase() + campo.slice(1).replace(/_/g, ' '),
+                    placeholder: '',
+                    type: 'text'
+                };
+
+                const div = document.createElement('div');
+                div.className = 'space-y-2';
+                div.innerHTML = `<label class="block text-sm font-medium text-slate-300">${config_campo.label}</label>`;
+
+                let input;
+                if (config_campo.type === 'textarea') {
+                    input = document.createElement('textarea');
+                    input.rows = 3;
+                } else {
+                    input = document.createElement('input');
+                    input.type = config_campo.type;
+                }
+
+                input.name = campo;
+                input.placeholder = config_campo.placeholder;
+                input.className = 'w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none';
+                input.required = true;
+
+                div.appendChild(input);
+                camposContainer.appendChild(div);
+            });
+
+            // Agregar sección de resumen
+            const resumen = document.createElement('div');
+            resumen.id = 'resumen-dinamico';
+            resumen.className = 'bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 hidden';
+            resumen.innerHTML = `
+                <h4 class="text-sm font-medium text-blue-300 mb-2">📊 Resumen</h4>
+                <p id="resumen-texto-dinamico" class="text-sm text-slate-300"></p>
+            `;
+            contenedor.appendChild(resumen);
+
+            // Actualizar resumen cuando se escriba en los campos
+            const inputs = camposContainer.querySelectorAll('input, textarea');
+            inputs.forEach(input => {
+                input.addEventListener('input', actualizarResumen);
+            });
+
+            // Botón de envío
+            const btnContainer = document.createElement('div');
+            btnContainer.innerHTML = `
+                <button
+                    type="submit"
+                    class="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold py-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2"
+                >
+                    <span>⚡</span>
+                    <span id="btn-texto">Provisionar Bot</span>
+                </button>
+            `;
+            contenedor.appendChild(btnContainer);
+
+            // Estado
+            const estado = document.createElement('div');
+            estado.id = 'estado-dinamico';
+            estado.className = 'mt-6 hidden p-4 rounded-lg text-center';
+            contenedor.appendChild(estado);
+        }
+
+        // Actualizar resumen
+        function actualizarResumen() {
+            const form = document.getElementById('provisionForm');
+            const nombre = form.querySelector('[name*="nombre"]')?.value || '';
+            const instagram = form.querySelector('[name*="instagram"]')?.value || '';
+
+            if (nombre && instagram && servicioSeleccionado) {
+                const servicio = serviciosDisponibles[servicioSeleccionado];
+                const membresia = membresiaSeleccionada ? membresiasConfig[membresiaSeleccionada] : null;
+                const resumen = document.getElementById('resumen-dinamico');
+                resumen.classList.remove('hidden');
+
+                let resumenTexto = `
+                    <strong>${nombre}</strong> - Instagram: <strong>@${instagram}</strong><br/>
+                    Servicio: <strong>${servicio.nombre}</strong> ($${servicio.precio.toLocaleString()})
+                `;
+
+                if (membresia) {
+                    resumenTexto += `<br/>Membresía: <strong>${membresia.nombre}</strong> ($${membresia.precio.toLocaleString()}/${membresia.tipo})`;
+                }
+
+                document.getElementById('resumen-texto-dinamico').innerHTML = resumenTexto;
+            }
+        }
+
         // Seleccionar servicio
         function seleccionarServicio(key, servicio) {
             servicioSeleccionado = key;
+            membresiaSeleccionada = null;
 
-            // Actualizar UI
+            // Actualizar botones de servicio
             document.querySelectorAll('.servicio-btn').forEach(btn => {
                 btn.classList.remove('border-blue-500', 'bg-blue-500/10');
                 btn.classList.add('border-slate-600', 'bg-slate-900/30');
             });
-
             event.target.closest('.servicio-btn').classList.add('border-blue-500', 'bg-blue-500/10');
 
-            // Mostrar resumen
-            const form = document.getElementById('provisionForm');
-            const nombre = form.cliente_nombre.value;
-            const instagram = form.cliente_instagram.value;
+            // Renderizar membresías
+            renderizarMembresias(key);
 
-            if (nombre && instagram && servicioSeleccionado) {
-                document.getElementById('resumen').classList.remove('hidden');
-                document.getElementById('resumen-texto').innerHTML = `
-                    <strong>${nombre}</strong> - Instagram: <strong>@${instagram}</strong><br/>
-                    Servicio: <strong>${servicio.nombre}</strong> ($${servicio.precio.toLocaleString()})
-                `;
-            }
+            // Generar formulario
+            const config = productosConfig[key] || {};
+            generarFormularioDinamico(config, servicio);
+        }
+
+        // Seleccionar membresía
+        function seleccionarMembresia(key, membresia) {
+            membresiaSeleccionada = key;
+
+            // Actualizar botones de membresía
+            document.querySelectorAll('.membresia-btn').forEach(btn => {
+                btn.classList.remove('border-cyan-500', 'bg-cyan-500/10');
+                btn.classList.add('border-slate-600', 'bg-slate-900/30');
+            });
+            event.target.closest('.membresia-btn').classList.add('border-cyan-500', 'bg-cyan-500/10');
+
+            // Actualizar resumen
+            actualizarResumen();
         }
 
         // Provisionar bot
         async function provisionar(e) {
             e.preventDefault();
 
-            const form = document.getElementById('provisionForm');
-            const cliente_nombre = form.cliente_nombre.value;
-            const cliente_instagram = form.cliente_instagram.value;
-            const cliente_clave = form.cliente_clave.value;
-
             if (!servicioSeleccionado) {
                 alert('Selecciona un servicio');
                 return;
             }
 
-            // Mostrar estado
-            const estado = document.getElementById('estado');
+            const form = document.getElementById('provisionForm');
+            const formData = new FormData(form);
+            const datos = {
+                tipo_servicio: servicioSeleccionado,
+                membresia_seleccionada: membresiaSeleccionada || ''
+            };
+
+            for (let [key, value] of formData.entries()) {
+                datos[key] = value;
+            }
+
+            const estado = document.getElementById('estado-dinamico');
             estado.className = 'mt-6 p-4 rounded-lg text-center bg-blue-500/10 border border-blue-500/30';
             estado.innerHTML = '⏳ Provisionando bot...';
             estado.classList.remove('hidden');
 
-            const btn = document.querySelector('button[type="submit"]');
+            const btn = form.querySelector('button[type="submit"]');
             btn.disabled = true;
 
             try {
                 const res = await fetch(`${API_URL}/provisionar`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        cliente_nombre,
-                        cliente_instagram,
-                        cliente_clave,
-                        tipo_servicio: servicioSeleccionado
-                    })
+                    body: JSON.stringify(datos)
                 });
 
                 const data = await res.json();
@@ -240,10 +400,12 @@
                 if (data.ok) {
                     estado.className = 'mt-6 p-4 rounded-lg text-center bg-green-500/10 border border-green-500/30';
                     estado.innerHTML = `✅ ${data.mensaje}`;
-                    form.reset();
-                    servicioSeleccionado = null;
-                    renderizarServicios();
-                    document.getElementById('resumen').classList.add('hidden');
+                    setTimeout(() => {
+                        form.reset();
+                        servicioSeleccionado = null;
+                        document.getElementById('campos-dinamicos').innerHTML = '';
+                        renderizarServicios();
+                    }, 2000);
                 } else {
                     estado.className = 'mt-6 p-4 rounded-lg text-center bg-red-500/10 border border-red-500/30';
                     estado.innerHTML = `❌ Error: ${data.error}`;
@@ -256,8 +418,67 @@
             }
         }
 
+        // Cargar historial
+        async function cargarHistorial() {
+            const container = document.getElementById('historial-container');
+            container.innerHTML = '<p class="text-slate-400 text-center py-8">Cargando...</p>';
+
+            try {
+                const res = await fetch(`${API_URL}/historial`);
+                const data = await res.json();
+
+                if (data.ok && data.bots && data.bots.length > 0) {
+                    container.innerHTML = '';
+                    data.bots.forEach(bot => {
+                        const card = document.createElement('div');
+                        card.className = 'bg-slate-700/30 p-4 rounded-lg border border-slate-700/50';
+
+                        const estadoColor = {
+                            'listo': 'bg-green-500/20 text-green-300',
+                            'provisionando': 'bg-blue-500/20 text-blue-300',
+                            'error': 'bg-red-500/20 text-red-300',
+                            'error_credenciales': 'bg-red-500/20 text-red-300',
+                            'error_railway': 'bg-red-500/20 text-red-300'
+                        };
+
+                        const color = estadoColor[bot.estado] || 'bg-slate-500/20 text-slate-300';
+
+                        card.innerHTML = `
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <p class="font-semibold text-white">${bot.cliente}</p>
+                                    <p class="text-sm text-slate-400">@${bot.instagram}</p>
+                                </div>
+                                <span class="px-3 py-1 rounded text-xs font-medium ${color}">${bot.estado}</span>
+                            </div>
+                            <div class="space-y-1 text-sm text-slate-300">
+                                <p>Servicio: <strong>${bot.servicio}</strong></p>
+                                <p class="text-slate-500">Fecha: ${new Date(bot.fecha).toLocaleDateString()}</p>
+                            </div>
+                        `;
+                        container.appendChild(card);
+                    });
+                } else {
+                    container.innerHTML = '<p class="text-slate-400 text-center py-8">No hay bots provisionados aún</p>';
+                }
+            } catch (error) {
+                container.innerHTML = `<p class="text-red-400 text-center py-8">Error: ${error.message}</p>`;
+            }
+        }
+
+        // Cargar historial cuando se cambia a la pestaña
+        const observer = new MutationObserver(() => {
+            const historialTab = document.getElementById('tab-historial');
+            if (historialTab && !historialTab.classList.contains('hidden')) {
+                cargarHistorial();
+            }
+        });
+
         // Inicializar
-        document.addEventListener('DOMContentLoaded', cargarServicios);
+        document.addEventListener('DOMContentLoaded', () => {
+            cargarServicios();
+            observer.observe(document.getElementById('tab-historial'), { attributes: true, attributeFilter: ['class'] });
+        });
     </script>
 </body>
 </html>

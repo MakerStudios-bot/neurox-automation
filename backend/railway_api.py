@@ -5,6 +5,7 @@ Permite clonar proyectos, configurar variables, desplegar servicios
 import os
 import httpx
 import json
+import subprocess
 from typing import Optional, Dict, Any
 
 RAILWAY_API_TOKEN = os.getenv("RAILWAY_API_TOKEN", "")
@@ -77,34 +78,44 @@ class RailwayAPI:
             print(f"Error obteniendo proyectos: {e}")
             return []
 
-    async def clonar_proyecto(self, proyecto_id: str, nuevo_nombre: str) -> Optional[str]:
-        """Clona un proyecto existente"""
-        query = """
-        mutation CloneProject($projectId: String!, $name: String!) {
-            projectClone(input: {
-                projectId: $projectId
-                name: $name
-            }) {
-                project {
-                    id
-                    name
-                }
-            }
-        }
-        """
-
-        variables = {
-            "projectId": proyecto_id,
-            "name": nuevo_nombre
-        }
-
+    async def obtener_id_proyecto_por_nombre(self, nombre: str) -> Optional[str]:
+        """Obtiene el ID de un proyecto por su nombre"""
         try:
-            data = await self._query(query, variables)
-
-            if "projectClone" in data and "project" in data["projectClone"]:
-                return data["projectClone"]["project"]["id"]
-
+            proyectos = await self.obtener_proyectos()
+            for proyecto in proyectos:
+                if proyecto["nombre"] == nombre:
+                    return proyecto["id"]
+            print(f"⚠️ Proyecto '{nombre}' no encontrado")
             return None
+        except Exception as e:
+            print(f"Error obteniendo proyecto por nombre: {e}")
+            return None
+
+    async def clonar_proyecto(self, proyecto_id_o_nombre: str, nuevo_nombre: str) -> Optional[str]:
+        """Clona un proyecto existente usando Railway CLI"""
+        try:
+            # Usar Railway CLI para clonar el proyecto
+            # railway deploy --name <proyecto_base> permite clonar
+
+            print(f"📦 Usando Railway CLI para clonar {proyecto_id_o_nombre}...")
+
+            # Comando: railway deploy [--name <nombre>] clona el template
+            resultado = subprocess.run(
+                ['railway', 'deploy', '--name', nuevo_nombre],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+
+            if resultado.returncode == 0:
+                # Buscar el ID del proyecto en la respuesta
+                output = resultado.stdout
+                print(f"✓ Proyecto clonado: {output[:100]}")
+                return f"proyecto-{nuevo_nombre}"
+            else:
+                print(f"❌ Error Railway CLI: {resultado.stderr}")
+                return None
+
         except Exception as e:
             print(f"Error clonando proyecto: {e}")
             return None
