@@ -32,6 +32,23 @@ with open(CONFIG_PATH / "prompts.json") as f:
 
 app = FastAPI(title="Neurox Bot Provisioner", version="1.0.0")
 
+# Seed webhook routes al iniciar (rutas base + env var para nuevas)
+DEFAULT_ROUTES = {
+    "17841480224286570": "https://neurox-instagram-bot-production.up.railway.app/webhook",
+    "17841468402103789": "https://neurox-airfresh-bot-production.up.railway.app/webhook",
+}
+
+WEBHOOK_ROUTES_EXTRA = os.getenv("WEBHOOK_ROUTES", "")
+if WEBHOOK_ROUTES_EXTRA:
+    try:
+        DEFAULT_ROUTES.update(json.loads(WEBHOOK_ROUTES_EXTRA))
+    except Exception as e:
+        print(f"⚠️ Error parseando WEBHOOK_ROUTES: {e}")
+
+for page_id, webhook_url in DEFAULT_ROUTES.items():
+    registrar_ruta_webhook(page_id, webhook_url)
+print(f"✓ {len(DEFAULT_ROUTES)} rutas de webhook cargadas")
+
 # Configuración
 NEUROX_VENDEDOR_NOMBRE = os.getenv("NEUROX_VENDEDOR_NOMBRE", "María")
 
