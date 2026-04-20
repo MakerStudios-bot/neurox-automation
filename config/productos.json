@@ -3,7 +3,7 @@
     "nombre": "Bot Automático Instagram (Sin IA)",
     "precio": 110000,
     "tipo": "bot",
-    "template": "mellow-elegance",
+    "template": "radiant-ambition",
     "membresias": ["bot_starter", "bot_pro", "bot_full"],
     "campos_obligatorios": [
       "nombre_negocio",
@@ -43,7 +43,7 @@
     "nombre": "Bot Automático Instagram (Con IA)",
     "precio": 180000,
     "tipo": "bot",
-    "template": "mellow-elegance",
+    "template": "radiant-ambition",
     "membresias": ["bot_starter", "bot_pro", "bot_full"],
     "campos_obligatorios": [
       "nombre_negocio",
