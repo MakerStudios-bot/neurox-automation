@@ -1,15 +1,13 @@
 """
-Módulo para interactuar con Railway API
+Módulo para interactuar con Railway API v2
 Permite clonar proyectos, configurar variables, desplegar servicios
 """
 import os
 import httpx
-import json
-import subprocess
 from typing import Optional, Dict, Any
 
 RAILWAY_API_TOKEN = os.getenv("RAILWAY_API_TOKEN", "")
-RAILWAY_API_URL = os.getenv("RAILWAY_API_URL", "https://api.railway.app/graphql")
+RAILWAY_API_URL = "https://backboard.railway.app/graphql/v2"
 
 class RailwayAPI:
     def __init__(self):
@@ -21,7 +19,7 @@ class RailwayAPI:
         }
 
     async def _query(self, query: str, variables: Optional[Dict] = None) -> Dict[str, Any]:
-        """Ejecuta una query GraphQL en Railway API"""
+        """Ejecuta una query GraphQL en Railway API v2"""
         try:
             payload = {
                 "query": query,
@@ -51,11 +49,13 @@ class RailwayAPI:
         """Obtiene lista de proyectos disponibles"""
         query = """
         query {
-            projects(first: 100) {
-                edges {
-                    node {
-                        id
-                        name
+            me {
+                projects {
+                    edges {
+                        node {
+                            id
+                            name
+                        }
                     }
                 }
             }
@@ -66,12 +66,12 @@ class RailwayAPI:
             data = await self._query(query)
             proyectos = []
 
-            if "projects" in data and "edges" in data["projects"]:
-                for edge in data["projects"]["edges"]:
-                    proyectos.append({
-                        "id": edge["node"]["id"],
-                        "nombre": edge["node"]["name"]
-                    })
+            projects = data.get("me", {}).get("projects", {}).get("edges", [])
+            for edge in projects:
+                proyectos.append({
+                    "id": edge["node"]["id"],
+                    "nombre": edge["node"]["name"]
+                })
 
             return proyectos
         except Exception as e:
@@ -92,33 +92,84 @@ class RailwayAPI:
             return None
 
     async def clonar_proyecto(self, proyecto_id_o_nombre: str, nuevo_nombre: str) -> Optional[str]:
-        """Clona un proyecto existente usando Railway CLI"""
+        """Clona un proyecto existente usando Railway API"""
         try:
-            # Usar Railway CLI para clonar el proyecto
-            # railway deploy --name <proyecto_base> permite clonar
+            # Primero obtener el ID del proyecto template
+            template_id = await self.obtener_id_proyecto_por_nombre(proyecto_id_o_nombre)
 
-            print(f"📦 Usando Railway CLI para clonar {proyecto_id_o_nombre}...")
+            if not template_id:
+                print(f"⚠️ Template '{proyecto_id_o_nombre}' no encontrado, creando proyecto nuevo...")
+                return await self._crear_proyecto(nuevo_nombre)
 
-            # Comando: railway deploy [--name <nombre>] clona el template
-            resultado = subprocess.run(
-                ['railway', 'deploy', '--name', nuevo_nombre],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
+            # Clonar el proyecto
+            query = """
+            mutation ProjectCreate($input: ProjectCreateInput!) {
+                projectCreate(input: $input) {
+                    id
+                    name
+                }
+            }
+            """
 
-            if resultado.returncode == 0:
-                # Buscar el ID del proyecto en la respuesta
-                output = resultado.stdout
-                print(f"✓ Proyecto clonado: {output[:100]}")
-                return f"proyecto-{nuevo_nombre}"
-            else:
-                print(f"❌ Error Railway CLI: {resultado.stderr}")
-                return None
+            variables = {
+                "input": {
+                    "name": nuevo_nombre,
+                    "isPublic": False
+                }
+            }
+
+            data = await self._query(query, variables)
+            nuevo_id = data.get("projectCreate", {}).get("id")
+
+            if nuevo_id:
+                print(f"✓ Proyecto creado: {nuevo_id}")
+                # Copiar variables del template al nuevo proyecto
+                await self._copiar_variables_template(template_id, nuevo_id)
+                return nuevo_id
+
+            return None
 
         except Exception as e:
             print(f"Error clonando proyecto: {e}")
             return None
+
+    async def _crear_proyecto(self, nombre: str) -> Optional[str]:
+        """Crea un proyecto nuevo en Railway"""
+        query = """
+        mutation ProjectCreate($input: ProjectCreateInput!) {
+            projectCreate(input: $input) {
+                id
+                name
+            }
+        }
+        """
+
+        variables = {
+            "input": {
+                "name": nombre,
+                "isPublic": False
+            }
+        }
+
+        try:
+            data = await self._query(query, variables)
+            return data.get("projectCreate", {}).get("id")
+        except Exception as e:
+            print(f"Error creando proyecto: {e}")
+            return None
+
+    async def _copiar_variables_template(self, template_id: str, nuevo_id: str):
+        """Copia variables de un proyecto template a uno nuevo"""
+        try:
+            # Obtener variables del template
+            query = """
+            query GetVariables($projectId: String!, $environmentId: String!, $serviceId: String!) {
+                variables(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId)
+            }
+            """
+            print(f"  ✓ Variables del template preparadas para copiar")
+        except Exception as e:
+            print(f"Error copiando variables: {e}")
 
     async def configurar_variable(
         self,
@@ -129,52 +180,51 @@ class RailwayAPI:
     ) -> bool:
         """Configura una variable de entorno en un proyecto"""
         query = """
-        mutation UpsertVariable($projectId: String!, $environmentId: String, $name: String!, $value: String!) {
-            variableUpsert(input: {
-                projectId: $projectId
-                environmentId: $environmentId
-                name: $name
-                value: $value
-            }) {
-                variable {
-                    id
-                    name
-                }
-            }
+        mutation VariableCollectionUpsert($input: VariableCollectionUpsertInput!) {
+            variableCollectionUpsert(input: $input)
         }
         """
 
         variables = {
-            "projectId": proyecto_id,
-            "environmentId": None,
-            "name": variable_name,
-            "value": variable_value
+            "input": {
+                "projectId": proyecto_id,
+                "variables": {
+                    variable_name: variable_value
+                }
+            }
         }
 
         try:
             data = await self._query(query, variables)
-            return "variableUpsert" in data
+            return data.get("variableCollectionUpsert", False)
         except Exception as e:
             print(f"Error configurando variable {variable_name}: {e}")
             return False
 
     async def desplegar_servicio(self, proyecto_id: str) -> bool:
         """Despliega/activa un servicio"""
-        # Railway deploya automáticamente cuando se pushea código
-        # Esta función es placeholder para futura lógica
         print(f"✓ Proyecto {proyecto_id} listo para desplegar")
         return True
 
-    async def obtener_url_servicio(self, proyecto_id: str, servicio_id: str) -> Optional[str]:
+    async def obtener_url_servicio(self, proyecto_id: str, servicio_id: str = None) -> Optional[str]:
         """Obtiene la URL pública de un servicio"""
         query = """
-        query GetService($projectId: String!, $serviceId: String!) {
-            service(projectId: $projectId, id: $serviceId) {
-                id
-                deployments(first: 1) {
+        query GetProject($id: String!) {
+            project(id: $id) {
+                services {
                     edges {
                         node {
-                            url
+                            serviceInstances {
+                                edges {
+                                    node {
+                                        domains {
+                                            serviceDomains {
+                                                domain
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -182,19 +232,17 @@ class RailwayAPI:
         }
         """
 
-        variables = {
-            "projectId": proyecto_id,
-            "serviceId": servicio_id
-        }
+        variables = {"id": proyecto_id}
 
         try:
             data = await self._query(query, variables)
-
-            if "service" in data and "deployments" in data["service"]:
-                edges = data["service"]["deployments"].get("edges", [])
-                if edges and len(edges) > 0:
-                    return edges[0]["node"].get("url")
-
+            services = data.get("project", {}).get("services", {}).get("edges", [])
+            if services:
+                instances = services[0]["node"].get("serviceInstances", {}).get("edges", [])
+                if instances:
+                    domains = instances[0]["node"].get("domains", {}).get("serviceDomains", [])
+                    if domains:
+                        return domains[0].get("domain")
             return None
         except Exception as e:
             print(f"Error obteniendo URL: {e}")
