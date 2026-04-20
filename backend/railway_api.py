@@ -1,175 +1,164 @@
 """
 Módulo para interactuar con Railway API v2
-Permite clonar proyectos, configurar variables, desplegar servicios
+Clona radiant-ambition para cada cliente, configura variables y despliega
 """
 import os
 import httpx
 from typing import Optional, Dict, Any
 
-RAILWAY_API_TOKEN = os.getenv("RAILWAY_API_TOKEN", "")
 RAILWAY_API_URL = "https://backboard.railway.app/graphql/v2"
+RAILWAY_ACCESS_TOKEN = os.getenv("RAILWAY_ACCESS_TOKEN", "")
+RAILWAY_WORKSPACE_ID = os.getenv("RAILWAY_WORKSPACE_ID", "")
+
+TEMPLATE_PROJECT_ID = os.getenv("TEMPLATE_PROJECT_ID", "eaa5e41c-06a2-497b-8696-1417a9f62485")
+TEMPLATE_SERVICE_ID = os.getenv("TEMPLATE_SERVICE_ID", "b81e319e-0150-4560-a613-b0f31ec90c4c")
+TEMPLATE_ENVIRONMENT_ID = os.getenv("TEMPLATE_ENVIRONMENT_ID", "a9d3cfb8-e212-40fd-8de2-959e06c22497")
+TEMPLATE_REPO = os.getenv("TEMPLATE_REPO", "MakerStudios-bot/neurox-instagram-bot")
+
 
 class RailwayAPI:
     def __init__(self):
-        self.token = RAILWAY_API_TOKEN
         self.url = RAILWAY_API_URL
         self.headers = {
-            "Authorization": f"Bearer {self.token}",
+            "Authorization": f"Bearer {RAILWAY_ACCESS_TOKEN}",
             "Content-Type": "application/json"
         }
 
     async def _query(self, query: str, variables: Optional[Dict] = None) -> Dict[str, Any]:
-        """Ejecuta una query GraphQL en Railway API v2"""
         try:
-            payload = {
-                "query": query,
-                "variables": variables or {}
-            }
-
+            payload = {"query": query, "variables": variables or {}}
             async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    self.url,
-                    json=payload,
-                    headers=self.headers
-                )
-
+                response = await client.post(self.url, json=payload, headers=self.headers)
             data = response.json()
-
             if "errors" in data:
                 error_msg = data["errors"][0]["message"] if data["errors"] else "Unknown error"
                 raise Exception(f"Railway API Error: {error_msg}")
-
             return data.get("data", {})
-
         except Exception as e:
             print(f"❌ Error en Railway API: {e}")
             raise
 
     async def obtener_proyectos(self) -> list:
-        """Obtiene lista de proyectos disponibles"""
-        query = """
-        query {
-            me {
-                projects {
-                    edges {
-                        node {
-                            id
-                            name
-                        }
-                    }
-                }
-            }
-        }
-        """
-
         try:
+            query = '{ me { projects { edges { node { id name } } } } }'
             data = await self._query(query)
             proyectos = []
-
-            projects = data.get("me", {}).get("projects", {}).get("edges", [])
-            for edge in projects:
-                proyectos.append({
-                    "id": edge["node"]["id"],
-                    "nombre": edge["node"]["name"]
-                })
-
+            for edge in data.get("me", {}).get("projects", {}).get("edges", []):
+                proyectos.append({"id": edge["node"]["id"], "nombre": edge["node"]["name"]})
             return proyectos
         except Exception as e:
             print(f"Error obteniendo proyectos: {e}")
             return []
 
-    async def obtener_id_proyecto_por_nombre(self, nombre: str) -> Optional[str]:
-        """Obtiene el ID de un proyecto por su nombre"""
+    async def obtener_variables_template(self) -> Dict[str, str]:
+        """Obtiene las variables del proyecto template radiant-ambition"""
+        query = """
+        query GetVars($projectId: String!, $environmentId: String!, $serviceId: String!) {
+            variables(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId)
+        }
+        """
+        variables = {
+            "projectId": TEMPLATE_PROJECT_ID,
+            "environmentId": TEMPLATE_ENVIRONMENT_ID,
+            "serviceId": TEMPLATE_SERVICE_ID
+        }
         try:
-            proyectos = await self.obtener_proyectos()
-            for proyecto in proyectos:
-                if proyecto["nombre"] == nombre:
-                    return proyecto["id"]
-            print(f"⚠️ Proyecto '{nombre}' no encontrado")
-            return None
+            data = await self._query(query, variables)
+            return data.get("variables", {})
         except Exception as e:
-            print(f"Error obteniendo proyecto por nombre: {e}")
-            return None
+            print(f"Error obteniendo variables template: {e}")
+            return {}
 
-    async def clonar_proyecto(self, proyecto_id_o_nombre: str, nuevo_nombre: str) -> Optional[str]:
-        """Clona un proyecto existente usando Railway API"""
+    async def clonar_proyecto(self, template_nombre: str, nuevo_nombre: str) -> Optional[str]:
+        """Clona radiant-ambition creando proyecto nuevo con mismo repo"""
         try:
-            # Primero obtener el ID del proyecto template
-            template_id = await self.obtener_id_proyecto_por_nombre(proyecto_id_o_nombre)
-
-            if not template_id:
-                print(f"⚠️ Template '{proyecto_id_o_nombre}' no encontrado, creando proyecto nuevo...")
-                return await self._crear_proyecto(nuevo_nombre)
-
-            # Clonar el proyecto
+            # Paso 1: Crear proyecto
             query = """
             mutation ProjectCreate($input: ProjectCreateInput!) {
-                projectCreate(input: $input) {
-                    id
-                    name
-                }
+                projectCreate(input: $input) { id name }
             }
             """
+            input_data = {"name": nuevo_nombre}
+            if RAILWAY_WORKSPACE_ID:
+                input_data["workspaceId"] = RAILWAY_WORKSPACE_ID
 
-            variables = {
-                "input": {
-                    "name": nuevo_nombre,
-                    "isPublic": False
-                }
+            data = await self._query(query, {"input": input_data})
+            proyecto_id = data.get("projectCreate", {}).get("id")
+            if not proyecto_id:
+                return None
+            print(f"  ✓ Proyecto creado: {proyecto_id}")
+
+            # Paso 2: Obtener environment ID
+            env_query = """
+            query GetEnv($id: String!) {
+                project(id: $id) { environments { edges { node { id name } } } }
             }
+            """
+            env_data = await self._query(env_query, {"id": proyecto_id})
+            env_edges = env_data.get("project", {}).get("environments", {}).get("edges", [])
+            env_id = env_edges[0]["node"]["id"] if env_edges else None
 
-            data = await self._query(query, variables)
-            nuevo_id = data.get("projectCreate", {}).get("id")
+            # Paso 3: Crear servicio con el mismo repo
+            svc_query = """
+            mutation ServiceCreate($input: ServiceCreateInput!) {
+                serviceCreate(input: $input) { id name }
+            }
+            """
+            svc_data = await self._query(svc_query, {
+                "input": {
+                    "projectId": proyecto_id,
+                    "name": f"bot-{nuevo_nombre}",
+                    "source": {"repo": TEMPLATE_REPO}
+                }
+            })
+            servicio_id = svc_data.get("serviceCreate", {}).get("id")
+            print(f"  ✓ Servicio creado: {servicio_id}")
 
-            if nuevo_id:
-                print(f"✓ Proyecto creado: {nuevo_id}")
-                # Copiar variables del template al nuevo proyecto
-                await self._copiar_variables_template(template_id, nuevo_id)
-                return nuevo_id
+            # Paso 4: Copiar variables del template
+            template_vars = await self.obtener_variables_template()
+            vars_to_copy = {k: v for k, v in template_vars.items() if not k.startswith("RAILWAY_")}
 
-            return None
+            if vars_to_copy and env_id and servicio_id:
+                vars_query = """
+                mutation SetVars($input: VariableCollectionUpsertInput!) {
+                    variableCollectionUpsert(input: $input)
+                }
+                """
+                await self._query(vars_query, {
+                    "input": {
+                        "projectId": proyecto_id,
+                        "environmentId": env_id,
+                        "serviceId": servicio_id,
+                        "variables": vars_to_copy
+                    }
+                })
+                print(f"  ✓ Variables copiadas del template")
+
+            # Paso 5: Generar dominio público
+            if env_id and servicio_id:
+                domain_query = """
+                mutation CreateDomain($input: ServiceDomainCreateInput!) {
+                    serviceDomainCreate(input: $input) { id domain }
+                }
+                """
+                domain_data = await self._query(domain_query, {
+                    "input": {
+                        "serviceId": servicio_id,
+                        "environmentId": env_id
+                    }
+                })
+                domain = domain_data.get("serviceDomainCreate", {}).get("domain", "")
+                print(f"  ✓ Dominio: {domain}")
+
+            # Guardar IDs para configurar variables después
+            self._last_env_id = env_id
+            self._last_service_id = servicio_id
+
+            return proyecto_id
 
         except Exception as e:
             print(f"Error clonando proyecto: {e}")
             return None
-
-    async def _crear_proyecto(self, nombre: str) -> Optional[str]:
-        """Crea un proyecto nuevo en Railway"""
-        query = """
-        mutation ProjectCreate($input: ProjectCreateInput!) {
-            projectCreate(input: $input) {
-                id
-                name
-            }
-        }
-        """
-
-        variables = {
-            "input": {
-                "name": nombre,
-                "isPublic": False
-            }
-        }
-
-        try:
-            data = await self._query(query, variables)
-            return data.get("projectCreate", {}).get("id")
-        except Exception as e:
-            print(f"Error creando proyecto: {e}")
-            return None
-
-    async def _copiar_variables_template(self, template_id: str, nuevo_id: str):
-        """Copia variables de un proyecto template a uno nuevo"""
-        try:
-            # Obtener variables del template
-            query = """
-            query GetVariables($projectId: String!, $environmentId: String!, $serviceId: String!) {
-                variables(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId)
-            }
-            """
-            print(f"  ✓ Variables del template preparadas para copiar")
-        except Exception as e:
-            print(f"Error copiando variables: {e}")
 
     async def configurar_variable(
         self,
@@ -179,18 +168,24 @@ class RailwayAPI:
         ambiente: str = "production"
     ) -> bool:
         """Configura una variable de entorno en un proyecto"""
+        env_id = getattr(self, '_last_env_id', None)
+        service_id = getattr(self, '_last_service_id', None)
+
+        if not env_id or not service_id:
+            print(f"  ⚠️ Sin env/service ID para {variable_name}")
+            return False
+
         query = """
-        mutation VariableCollectionUpsert($input: VariableCollectionUpsertInput!) {
+        mutation SetVars($input: VariableCollectionUpsertInput!) {
             variableCollectionUpsert(input: $input)
         }
         """
-
         variables = {
             "input": {
                 "projectId": proyecto_id,
-                "variables": {
-                    variable_name: variable_value
-                }
+                "environmentId": env_id,
+                "serviceId": service_id,
+                "variables": {variable_name: variable_value}
             }
         }
 
@@ -202,40 +197,24 @@ class RailwayAPI:
             return False
 
     async def desplegar_servicio(self, proyecto_id: str) -> bool:
-        """Despliega/activa un servicio"""
-        print(f"✓ Proyecto {proyecto_id} listo para desplegar")
+        """El servicio se despliega automáticamente al conectar el repo"""
+        print(f"✓ Proyecto {proyecto_id} desplegándose automáticamente")
         return True
 
     async def obtener_url_servicio(self, proyecto_id: str, servicio_id: str = None) -> Optional[str]:
-        """Obtiene la URL pública de un servicio"""
         query = """
         query GetProject($id: String!) {
             project(id: $id) {
-                services {
-                    edges {
-                        node {
-                            serviceInstances {
-                                edges {
-                                    node {
-                                        domains {
-                                            serviceDomains {
-                                                domain
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                services { edges { node {
+                    serviceInstances { edges { node {
+                        domains { serviceDomains { domain } }
+                    } } }
+                } } }
             }
         }
         """
-
-        variables = {"id": proyecto_id}
-
         try:
-            data = await self._query(query, variables)
+            data = await self._query(query, {"id": proyecto_id})
             services = data.get("project", {}).get("services", {}).get("edges", [])
             if services:
                 instances = services[0]["node"].get("serviceInstances", {}).get("edges", [])
@@ -248,5 +227,15 @@ class RailwayAPI:
             print(f"Error obteniendo URL: {e}")
             return None
 
-# Instancia global
+    async def obtener_id_proyecto_por_nombre(self, nombre: str) -> Optional[str]:
+        try:
+            proyectos = await self.obtener_proyectos()
+            for p in proyectos:
+                if p["nombre"] == nombre:
+                    return p["id"]
+            return None
+        except Exception:
+            return None
+
+
 railway = RailwayAPI()
