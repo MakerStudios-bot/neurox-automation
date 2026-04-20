@@ -163,6 +163,18 @@ async def provisionar_nuevo_bot(request: Request, background_tasks: BackgroundTa
                     status_code=400
                 )
 
+        # Validar credenciales de Meta
+        if not data.get("access_token_meta", "").strip():
+            return JSONResponse(
+                {"ok": False, "error": "Falta el Access Token de Instagram (Meta)"},
+                status_code=400
+            )
+        if not data.get("instagram_business_account_id", "").strip():
+            return JSONResponse(
+                {"ok": False, "error": "Falta el Instagram Business Account ID"},
+                status_code=400
+            )
+
         servicio = SERVICIOS[tipo_servicio]
 
         # Dispara provisioning en background

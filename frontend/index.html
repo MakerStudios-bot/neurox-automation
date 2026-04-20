@@ -210,11 +210,14 @@
             'whatsapp_derivacion': { label: 'WhatsApp de Derivación', placeholder: '+54 9 1234 5678', type: 'text' },
             'tono_respuesta': { label: 'Tono de Respuesta', placeholder: 'Ej: profesional, amigable, casual', type: 'text' },
             'tono_venta': { label: 'Tono de Venta', placeholder: 'Ej: consultivo, directo, persuasivo', type: 'text' },
-            'servicios': { label: 'Servicios Ofrecidos', placeholder: 'Ej: Consultoría, Diseño, Desarrollo\n(uno por línea)', type: 'textarea' },
+            'servicios': { label: 'Servicios/Productos que ofrece', placeholder: 'Ej: Aromatizantes, Productos de limpieza\n(uno por línea)', type: 'textarea' },
             'link_agendamiento': { label: 'Link de Agendamiento', placeholder: 'https://calendly.com/...', type: 'text' },
             'horario_atencion': { label: 'Horario de Atención', placeholder: 'Lun-Vie 9:00-18:00', type: 'text' },
             'base_clientes_inactivos': { label: 'Criterio Clientes Inactivos', placeholder: 'Ej: Sin interacción hace 30 días', type: 'text' },
-            'cliente_nombre': { label: 'Nombre del Cliente', placeholder: 'Juan Pérez', type: 'text' }
+            'cliente_nombre': { label: 'Nombre del Cliente', placeholder: 'Juan Pérez', type: 'text' },
+            'access_token_meta': { label: 'Access Token de Instagram (Meta)', placeholder: 'IGAA...', type: 'text', help: 'Genera este token en Meta Developer Console > Tu App > Instagram' },
+            'instagram_business_account_id': { label: 'Instagram Business Account ID', placeholder: 'Ej: 17841468402103789', type: 'text', help: 'Aparece debajo del nombre de la cuenta en Meta Developer Console' },
+            'descripcion_negocio': { label: 'Descripcion del Negocio (para el bot)', placeholder: 'Ej: Empresa de aromatizantes y productos de limpieza en Chile', type: 'textarea' }
         };
 
         // Generar campos dinámicos
@@ -263,6 +266,44 @@
                 div.appendChild(input);
                 camposContainer.appendChild(div);
             });
+
+            // Sección: Credenciales de Meta
+            const seccionMeta = document.createElement('div');
+            seccionMeta.className = 'bg-amber-500/10 p-6 rounded-lg border border-amber-500/30';
+            seccionMeta.innerHTML = `
+                <h3 class="text-lg font-semibold text-amber-300 mb-2">🔑 Credenciales de Meta (Instagram)</h3>
+                <p class="text-xs text-slate-400 mb-4">Genera el token en <a href="https://developers.facebook.com/apps/1423070465772043/instagram-business/wa/instagram-settings/" target="_blank" class="text-blue-400 underline">Meta Developer Console</a> → agrega la cuenta del cliente → genera token</p>
+                <div class="space-y-4">
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-slate-300">Access Token de Instagram</label>
+                        <input name="access_token_meta" type="text" placeholder="IGAAxxxx..." class="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none" required />
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-slate-300">Instagram Business Account ID</label>
+                        <input name="instagram_business_account_id" type="text" placeholder="17841468402103789" class="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none" required />
+                    </div>
+                </div>
+            `;
+            contenedor.appendChild(seccionMeta);
+
+            // Sección: Personalización del Bot
+            const seccionBot = document.createElement('div');
+            seccionBot.className = 'bg-purple-500/10 p-6 rounded-lg border border-purple-500/30';
+            seccionBot.innerHTML = `
+                <h3 class="text-lg font-semibold text-purple-300 mb-2">🤖 Personalización del Bot</h3>
+                <p class="text-xs text-slate-400 mb-4">Configura cómo se comportará el bot con los clientes</p>
+                <div class="space-y-4">
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-slate-300">Descripción del Negocio</label>
+                        <textarea name="descripcion_negocio" rows="2" placeholder="Ej: Empresa de aromatizantes y productos de limpieza en Chile. Vendemos difusores, sprays y productos ecológicos." class="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"></textarea>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-slate-300">Productos/Servicios con Precios</label>
+                        <textarea name="productos_precios" rows="3" placeholder="Ej:\nDifusor Premium - $25.000\nSpray Ambiental - $8.000\nKit Limpieza Eco - $35.000" class="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:border-purple-500 focus:outline-none"></textarea>
+                    </div>
+                </div>
+            `;
+            contenedor.appendChild(seccionBot);
 
             // Agregar sección de resumen
             const resumen = document.createElement('div');

@@ -10,57 +10,37 @@ from datetime import datetime
 from pathlib import Path
 
 from railway_api import railway
-from meta_api import meta
 from database import (
     guardar_bot, actualizar_bot, obtener_bot,
-    registrar_log, obtener_todos_bots
+    registrar_log, obtener_todos_bots, registrar_ruta_webhook
 )
 
-# Cargar configuraciones
 CONFIG_PATH = Path(__file__).parent.parent / "config"
 with open(CONFIG_PATH / "productos.json") as f:
     PRODUCTOS_CONFIG = json.load(f)
 with open(CONFIG_PATH / "prompts.json") as f:
     PROMPTS_CONFIG = json.load(f)
 
-# Mapeo de templates en Railway
-RAILWAY_TEMPLATES = {
-    "bot_automatico_sin_ia": "mellow-elegance",  # mellow-elegance: 49a1dc7a-c29d-4631-baff-5fb29e17d6e4
-    "bot_automatico_con_ia": "mellow-elegance",  # Mismo template, diferentes instrucciones
-    "vendedor_ia_starter": "radiant-ambition",   # radiant-ambition: eaa5e41c-06a2-497b-8696-1417a9f62485
-    "vendedor_ia_pro": "radiant-ambition",       # Mismo template, diferentes instrucciones
-    "vendedor_ia_elite": "radiant-ambition",     # Mismo template, diferentes instrucciones
-}
-
-VARIABLES_COMPARTIDAS = {
-    "TOKEN_DE_VERIFICACIÓN": "neurox_verification_token_123",
-    "APP_SECRET": "neurox_app_secret_456",
-    "CLAVE_API_ANTROPICA": "sk-ant-...tu-clave-aqui",
-}
 
 async def provisionar_bot(
     datos_cliente: Dict[str, Any],
     tipo_servicio: str
 ) -> Dict[str, Any]:
-    """
-    Provisiona un bot completo para un cliente.
-    Orquesta todas las integraciones.
-    """
-    # Extraer datos del cliente
     cliente_nombre = datos_cliente.get("nombre_negocio") or datos_cliente.get("cliente_nombre")
-    cliente_instagram = datos_cliente.get("instagram")
+    cliente_instagram = datos_cliente.get("instagram", "").strip().replace("@", "")
+    access_token_meta = datos_cliente.get("access_token_meta", "").strip()
+    ig_business_id = datos_cliente.get("instagram_business_account_id", "").strip()
+    descripcion_negocio = datos_cliente.get("descripcion_negocio", "").strip()
+    productos_precios = datos_cliente.get("productos_precios", "").strip()
+    servicios = datos_cliente.get("servicios", "").strip()
+    tono = datos_cliente.get("tono_venta", "").strip() or datos_cliente.get("tono_respuesta", "amigable").strip()
+    link_agendamiento = datos_cliente.get("link_agendamiento", "").strip()
+    whatsapp = datos_cliente.get("whatsapp_derivacion", "").strip() or datos_cliente.get("contacto_whatsapp", "").strip() or datos_cliente.get("contacto_derivacion", "").strip()
 
     print(f"\n📦 Iniciando provisioning: {cliente_nombre} (@{cliente_instagram})")
     print(f"   Producto: {tipo_servicio}")
 
-    resultado = {
-        "exito": False,
-        "bot_id": None,
-        "mensaje": "",
-        "errores": []
-    }
-
-    # Obtener configuración del producto
+    resultado = {"exito": False, "bot_id": None, "mensaje": "", "errores": []}
     config_producto = PRODUCTOS_CONFIG.get(tipo_servicio, {})
 
     # Paso 1: Guardar en BD
@@ -69,192 +49,156 @@ async def provisionar_bot(
         if bot_id == -1:
             resultado["errores"].append("Cliente ya existe")
             return resultado
-
         resultado["bot_id"] = bot_id
         registrar_log(bot_id, "iniciado", f"Provisioning de {config_producto.get('nombre')}")
         print(f"✓ Bot guardado en BD (ID: {bot_id})")
-
     except Exception as e:
         resultado["errores"].append(f"Error guardando en BD: {str(e)}")
         return resultado
 
-    # Paso 2: Validar credenciales Instagram (solo si requiere clave)
-    instagram_id = None
-    if "cliente_clave" in datos_cliente:
-        try:
-            cliente_clave = datos_cliente.get("cliente_clave")
-            print(f"🔐 Validando credenciales de @{cliente_instagram}...")
-            validacion = await meta.validar_credenciales_instagram(
-                cliente_instagram,
-                cliente_clave
-            )
-
-            if not validacion.get("valido"):
-                resultado["errores"].append("Credenciales de Instagram inválidas")
-                actualizar_bot(bot_id, estado="error_credenciales")
-                registrar_log(bot_id, "error", "Credenciales inválidas")
-                return resultado
-
-            instagram_id = validacion.get("instagram_id")
-            print(f"✓ Credenciales validadas")
-
-        except Exception as e:
-            resultado["errores"].append(f"Error validando Instagram: {str(e)}")
-            actualizar_bot(bot_id, estado="error_instagram")
-            registrar_log(bot_id, "error", str(e))
-            return resultado
-
-    # Paso 3: Clonar proyecto en Railway
+    # Paso 2: Clonar proyecto en Railway
+    proyecto_clonado_id = None
     try:
-        template_nombre = config_producto.get("template")
-        if not template_nombre:
-            resultado["errores"].append(f"Template no encontrado para: {tipo_servicio}")
-            actualizar_bot(bot_id, estado="error_template")
-            return resultado
+        template_nombre = config_producto.get("template", "radiant-ambition")
+        nuevo_proyecto_nombre = f"neurox-{cliente_instagram}"
 
         print(f"🚂 Clonando proyecto en Railway ({template_nombre})...")
-        nuevo_proyecto_nombre = f"neurox-{cliente_instagram}-{tipo_servicio[:10]}"
-
-        # Intentar clonar con Railway
-        proyecto_clonado_id = await railway.clonar_proyecto(
-            template_nombre,
-            nuevo_proyecto_nombre
-        )
+        proyecto_clonado_id = await railway.clonar_proyecto(template_nombre, nuevo_proyecto_nombre)
 
         if not proyecto_clonado_id:
-            # Si falla Railway, simular con un ID local para demostración
-            print(f"⚠️ Railway no disponible, usando simulación local")
-            proyecto_clonado_id = f"local-{bot_id}-{tipo_servicio[:8]}"
-            registrar_log(bot_id, "warning", "Usando simulación local de Railway")
+            resultado["errores"].append("Error clonando proyecto en Railway")
+            actualizar_bot(bot_id, estado="error_railway")
+            registrar_log(bot_id, "error", "Fallo al clonar en Railway")
+            return resultado
 
         actualizar_bot(bot_id, railway_project_id=proyecto_clonado_id)
+        registrar_log(bot_id, "railway_clonado", f"Proyecto: {proyecto_clonado_id}")
         print(f"✓ Proyecto clonado: {proyecto_clonado_id}")
 
     except Exception as e:
-        # En caso de error, también usar simulación
-        print(f"⚠️ Error en Railway: {e}, usando simulación")
-        proyecto_clonado_id = f"local-{bot_id}-{tipo_servicio[:8]}"
-        actualizar_bot(bot_id, railway_project_id=proyecto_clonado_id)
-        registrar_log(bot_id, "warning", f"Railway error, usando simulación: {str(e)}")
+        resultado["errores"].append(f"Error en Railway: {str(e)}")
+        actualizar_bot(bot_id, estado="error_railway")
+        registrar_log(bot_id, "error", str(e))
+        return resultado
 
-    # Paso 4: Configurar variables de entorno + Prompts
+    # Paso 3: Configurar variables del bot
     try:
-        print(f"⚙️ Configurando variables de entorno...")
+        print(f"⚙️ Configurando variables del bot...")
 
-        # Variables compartidas
-        for var_name, var_value in VARIABLES_COMPARTIDAS.items():
-            await railway.configurar_variable(
-                proyecto_clonado_id,
-                var_name,
-                var_value
-            )
-            print(f"  ✓ {var_name}")
+        env_id = getattr(railway, '_last_env_id', None)
+        service_id = getattr(railway, '_last_service_id', None)
 
-        # Variables del cliente (comunes a todos)
-        variables_cliente = {
+        system_prompt = f"Eres vendedor de {cliente_nombre}."
+        if descripcion_negocio:
+            system_prompt = f"Eres vendedor de {cliente_nombre}. {descripcion_negocio}."
+        system_prompt += f" Responde SIEMPRE en español, máximo 3 oraciones, sin listas con viñetas. Sé {tono}."
+
+        productos_texto = productos_precios or servicios or ""
+
+        variables_bot = {
+            "ACCESS_TOKEN": access_token_meta,
+            "INSTAGRAM_BUSINESS_ACCOUNT_ID": ig_business_id,
+            "BUSINESS_NAME": cliente_nombre,
+            "SYSTEM_PROMPT": system_prompt,
             "CLIENTE_NOMBRE": cliente_nombre,
-            "INSTAGRAM_USERNAME": cliente_instagram,
             "TIPO_SERVICIO": tipo_servicio,
+            "VERIFY_TOKEN": "neurox_webhook_2024",
         }
 
-        # Agregar variables específicas del cliente
-        for key, value in datos_cliente.items():
-            if key not in variables_cliente:
-                variables_cliente[key.upper()] = str(value)
+        if productos_texto:
+            variables_bot["PRODUCTOS_PROMPT"] = productos_texto
+            variables_bot["PRODUCTOS_DETALLE"] = productos_texto
 
-        for var_name, var_value in variables_cliente.items():
-            if var_value:  # Solo si tiene valor
-                await railway.configurar_variable(
-                    proyecto_clonado_id,
-                    var_name,
-                    str(var_value)
-                )
-                print(f"  ✓ {var_name}")
+        if link_agendamiento:
+            variables_bot["CAL_LINK"] = link_agendamiento
 
-        # CONFIGURAR PROMPT según el producto
-        prompt_template = PROMPTS_CONFIG.get(tipo_servicio, {})
-        if prompt_template:
-            # Reemplazar variables dinámicas en el prompt
-            prompt_personalizado = json.dumps(prompt_template)
-            for key, value in datos_cliente.items():
-                if value:
-                    prompt_personalizado = prompt_personalizado.replace(
-                        "{" + key + "}",
-                        str(value)
-                    )
+        if whatsapp:
+            variables_bot["WHATSAPP_DERIVACION"] = whatsapp
 
-            await railway.configurar_variable(
-                proyecto_clonado_id,
-                "PROMPT_SISTEMA",
-                prompt_personalizado
-            )
-            print(f"  ✓ PROMPT_SISTEMA (personalizado)")
+        # Usar variableCollectionUpsert para setear todo de una vez
+        if env_id and service_id:
+            from railway_api import RAILWAY_API_URL, RAILWAY_ACCESS_TOKEN
+            import httpx
 
-        registrar_log(bot_id, "variables_configuradas", "Variables + prompts configurados")
+            query = """
+            mutation SetVars($input: VariableCollectionUpsertInput!) {
+                variableCollectionUpsert(input: $input)
+            }
+            """
+            payload = {
+                "query": query,
+                "variables": {
+                    "input": {
+                        "projectId": proyecto_clonado_id,
+                        "environmentId": env_id,
+                        "serviceId": service_id,
+                        "variables": variables_bot
+                    }
+                }
+            }
+
+            headers = {
+                "Authorization": f"Bearer {RAILWAY_ACCESS_TOKEN}",
+                "Content-Type": "application/json"
+            }
+
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(RAILWAY_API_URL, json=payload, headers=headers)
+                data = response.json()
+                if data.get("data", {}).get("variableCollectionUpsert"):
+                    print(f"  ✓ Variables configuradas ({len(variables_bot)} variables)")
+                else:
+                    print(f"  ⚠️ Error seteando variables: {data}")
+
+        registrar_log(bot_id, "variables_configuradas", f"{len(variables_bot)} variables configuradas")
 
     except Exception as e:
-        resultado["errores"].append(f"Error configurando variables: {str(e)}")
-        actualizar_bot(bot_id, estado="error_variables")
-        registrar_log(bot_id, "error", str(e))
-        return resultado
+        print(f"⚠️ Error configurando variables: {e}")
+        registrar_log(bot_id, "warning", f"Variables: {str(e)}")
 
-    # Paso 5: Conectar webhook a Instagram
+    # Paso 4: Obtener URL del bot y registrar ruta de webhook
     try:
-        print(f"🔗 Conectando webhook a Instagram...")
+        url_bot = await railway.obtener_url_servicio(proyecto_clonado_id)
+        if url_bot:
+            webhook_url = f"https://{url_bot}/webhook"
+            actualizar_bot(bot_id, url_bot=f"https://{url_bot}")
+            print(f"✓ URL del bot: https://{url_bot}")
 
-        token_acceso = await meta.obtener_token_acceso(cliente_instagram)
-
-        webhook_conectado = await meta.conectar_webhook(
-            instagram_id,
-            f"https://neurox-{cliente_instagram}.railway.app/webhook",
-            token_acceso
-        )
-
-        if webhook_conectado:
-            actualizar_bot(bot_id, token_acceso=token_acceso)
-            print(f"✓ Webhook conectado")
+            # Registrar ruta de webhook
+            if ig_business_id:
+                registrar_ruta_webhook(ig_business_id, webhook_url, bot_id)
+                print(f"✓ Ruta webhook registrada: {ig_business_id} → {webhook_url}")
+                registrar_log(bot_id, "webhook_registrado", f"{ig_business_id} → {webhook_url}")
         else:
-            print(f"⚠️ Webhook no conectado (continuando)")
-
-        registrar_log(bot_id, "webhook_conectado", "Webhook de Instagram configurado")
+            print(f"⚠️ No se pudo obtener URL del bot")
 
     except Exception as e:
-        # No falla el provisioning si webhook falla
-        print(f"⚠️ Error en webhook: {e}")
-        registrar_log(bot_id, "warning", f"Webhook: {e}")
+        print(f"⚠️ Error obteniendo URL: {e}")
+        registrar_log(bot_id, "warning", f"URL: {str(e)}")
 
-    # Paso 6: Desplegar
-    try:
-        print(f"🚀 Desplegando...")
-        await railway.desplegar_servicio(proyecto_clonado_id)
-        print(f"✓ Desplegado")
-
-        registrar_log(bot_id, "desplegado", "Servicio desplegado en Railway")
-
-    except Exception as e:
-        resultado["errores"].append(f"Error desplegando: {str(e)}")
-        actualizar_bot(bot_id, estado="error_deploy")
-        registrar_log(bot_id, "error", str(e))
-        return resultado
-
-    # Paso 7: Finalizar
+    # Paso 5: Finalizar
     try:
         actualizar_bot(
             bot_id,
             estado="listo",
             fecha_listo=datetime.now().isoformat(),
-            instagram_id=instagram_id,
+            instagram_id=ig_business_id,
+            token_acceso=access_token_meta[:20] + "..." if access_token_meta else "",
+            railway_service_id=service_id,
             metadata={
                 "proyecto_railway": proyecto_clonado_id,
+                "service_id": service_id,
+                "environment_id": env_id,
                 "tipo_servicio": tipo_servicio,
+                "business_name": cliente_nombre,
                 "fecha_provisioning": datetime.now().isoformat()
             }
         )
 
-        registrar_log(bot_id, "completado", "Provisioning completado con éxito")
+        registrar_log(bot_id, "completado", "Provisioning completado")
 
         resultado["exito"] = True
-        resultado["mensaje"] = f"✅ Bot provisioned para {cliente_nombre}"
+        resultado["mensaje"] = f"Bot provisionado para {cliente_nombre}"
         print(f"\n✅ ¡Provisioning completado para {cliente_nombre}!\n")
 
     except Exception as e:
@@ -262,10 +206,9 @@ async def provisionar_bot(
 
     return resultado
 
-async def obtener_estado_provisioning(bot_id: int) -> Dict[str, Any]:
-    """Obtiene el estado actual de un bot"""
-    bot = obtener_bot(bot_id)
 
+async def obtener_estado_provisioning(bot_id: int) -> Dict[str, Any]:
+    bot = obtener_bot(bot_id)
     if not bot:
         return {"error": "Bot no encontrado"}
 
