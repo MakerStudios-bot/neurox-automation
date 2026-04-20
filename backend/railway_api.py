@@ -114,6 +114,25 @@ class RailwayAPI:
             servicio_id = svc_data.get("serviceCreate", {}).get("id")
             print(f"  ✓ Servicio creado: {servicio_id}")
 
+            # Paso 3.5: Configurar builder y rootDirectory (igual que radiant-ambition)
+            if env_id and servicio_id:
+                config_query = """
+                mutation ConfigService($serviceId: String!, $environmentId: String!, $input: ServiceInstanceUpdateInput!) {
+                    serviceInstanceUpdate(serviceId: $serviceId, environmentId: $environmentId, input: $input)
+                }
+                """
+                await self._query(config_query, {
+                    "serviceId": servicio_id,
+                    "environmentId": env_id,
+                    "input": {
+                        "builder": "RAILPACK",
+                        "rootDirectory": "/vendedor",
+                        "startCommand": "",
+                        "buildCommand": ""
+                    }
+                })
+                print(f"  ✓ Builder RAILPACK + rootDirectory /vendedor configurado")
+
             # Paso 4: Copiar variables del template
             template_vars = await self.obtener_variables_template()
             vars_to_copy = {k: v for k, v in template_vars.items() if not k.startswith("RAILWAY_")}
