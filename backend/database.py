@@ -45,8 +45,56 @@ def inicializar_db():
         )
     """)
 
+    # Tabla de rutas de webhook (page_id → URL del bot)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS webhook_routes (
+            page_id TEXT PRIMARY KEY,
+            webhook_url TEXT NOT NULL,
+            bot_id INTEGER,
+            activo INTEGER DEFAULT 1,
+            fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (bot_id) REFERENCES bots_provisionados(id)
+        )
+    """)
+
     conn.commit()
     conn.close()
+
+def registrar_ruta_webhook(page_id: str, webhook_url: str, bot_id: int = None) -> bool:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT OR REPLACE INTO webhook_routes (page_id, webhook_url, bot_id)
+            VALUES (?, ?, ?)
+        """, (page_id, webhook_url, bot_id))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+def obtener_ruta_webhook(page_id: str) -> Optional[str]:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT webhook_url FROM webhook_routes WHERE page_id = ? AND activo = 1",
+            (page_id,)
+        )
+        row = cursor.fetchone()
+        return row[0] if row else None
+    finally:
+        conn.close()
+
+def obtener_todas_rutas_webhook() -> List[Dict[str, Any]]:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT * FROM webhook_routes ORDER BY fecha_creacion DESC")
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
 
 def guardar_bot(
     cliente_nombre: str,

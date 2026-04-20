@@ -4,8 +4,9 @@ Neurox Bot Provisioner - Automatiza instalación completa de bots para clientes
 import os
 import sys
 import asyncio
+import httpx
 from fastapi import FastAPI, Request, BackgroundTasks
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from dotenv import load_dotenv
@@ -19,7 +20,7 @@ env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
 from provisioner import provisionar_bot, obtener_estado_provisioning
-from database import obtener_todos_bots
+from database import obtener_todos_bots, obtener_ruta_webhook, registrar_ruta_webhook, obtener_todas_rutas_webhook
 from railway_api import railway
 
 # Cargar configuraciones de productos
@@ -260,6 +261,68 @@ async def status():
             "error": str(e),
             "railway_conectado": False
         })
+
+WEBHOOK_VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", "neurox_webhook_2024")
+
+@app.get("/webhook")
+async def webhook_verify(request: Request):
+    mode = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
+    if mode == "subscribe" and token == WEBHOOK_VERIFY_TOKEN:
+        return PlainTextResponse(challenge)
+    return PlainTextResponse("Forbidden", status_code=403)
+
+@app.post("/webhook")
+async def webhook_router(request: Request):
+    """Recibe webhooks de Meta y los reenvía al bot correcto según page_id"""
+    try:
+        body = await request.body()
+        data = json.loads(body)
+
+        if data.get("object") != "instagram":
+            return PlainTextResponse("OK")
+
+        for entry in data.get("entry", []):
+            messaging = entry.get("messaging", [])
+            if not messaging:
+                continue
+
+            page_id = messaging[0].get("recipient", {}).get("id")
+            if not page_id:
+                continue
+
+            webhook_url = obtener_ruta_webhook(page_id)
+            if not webhook_url:
+                print(f"⚠️ Sin ruta para page_id {page_id}")
+                continue
+
+            print(f"📨 Reenviando webhook de {page_id} → {webhook_url}")
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                headers = {k: v for k, v in request.headers.items()
+                           if k.lower() not in ("host", "content-length")}
+                await client.post(webhook_url, content=body, headers=headers)
+
+    except Exception as e:
+        print(f"❌ Error en webhook router: {e}")
+
+    return PlainTextResponse("OK")
+
+@app.get("/api/webhook-routes")
+async def listar_rutas_webhook():
+    rutas = obtener_todas_rutas_webhook()
+    return JSONResponse({"ok": True, "rutas": rutas})
+
+@app.post("/api/webhook-routes")
+async def crear_ruta_webhook(request: Request):
+    data = await request.json()
+    page_id = data.get("page_id")
+    webhook_url = data.get("webhook_url")
+    bot_id = data.get("bot_id")
+    if not page_id or not webhook_url:
+        return JSONResponse({"ok": False, "error": "page_id y webhook_url requeridos"}, status_code=400)
+    registrar_ruta_webhook(page_id, webhook_url, bot_id)
+    return JSONResponse({"ok": True, "mensaje": f"Ruta {page_id} → {webhook_url} registrada"})
 
 if __name__ == "__main__":
     import uvicorn
